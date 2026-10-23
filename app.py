@@ -155,7 +155,6 @@ def run_query(question, original_question=None):
                 f"QueryPilot error: "
                 f"{type(error).__name__}: {error}"
             )
-
             error_message = str(error)
 
             if isinstance(error, TimeoutError):
