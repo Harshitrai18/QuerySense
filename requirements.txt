@@ -3,3 +3,4 @@ pandas
 groq
 sqlglot
 python-dotenv
+openpyxl

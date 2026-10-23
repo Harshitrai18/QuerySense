@@ -13,7 +13,7 @@ API_KEY = os.getenv("GROQ_API_KEY")
 MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
-def generate_sql(question):
+def generate_sql(question, db_path=None):
     """Convert a natural-language question into a SQL query."""
     if not API_KEY:
         raise RuntimeError(
@@ -23,7 +23,7 @@ def generate_sql(question):
     if not question or not question.strip():
         raise ValueError("Please enter a question.")
 
-    schema = get_schema()
+    schema = get_schema(db_path)
     client = Groq(api_key=API_KEY)
 
     response = client.chat.completions.create(

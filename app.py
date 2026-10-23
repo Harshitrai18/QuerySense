@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 
 from text_to_sql import generate_sql
-from database import execute_readonly
+from database import execute_readonly, import_dataset, DB_PATH
 from clarification import apply_clarification
 from ai_clarification import detect_ai_clarification
 from visualizations import detect_chart_type
 
 
 st.set_page_config(
-    page_title="QueryPilot",
+    page_title="QuerySense",
     page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -23,185 +23,86 @@ st.markdown(
     """
     <style>
     :root {
-        --qp-blue: #3157D5;
-        --qp-blue-dark: #2445B3;
-        --qp-ink: #172033;
-        --qp-muted: #64748B;
-        --qp-border: #E2E8F0;
-        --qp-panel: #F8FAFC;
+        /* Follow Streamlit's selected theme instead of forcing light-mode colors. */
+        --qp-blue: var(--primary-color, #5278F4);
+        --qp-ink: var(--text-color, #172033);
+        --qp-muted: var(--text-color, #64748B);
+        --qp-border: rgba(128, 140, 160, 0.28);
+        --qp-panel: var(--secondary-background-color, #F8FAFC);
     }
 
     .block-container {
         max-width: 1240px;
-        padding-top: 3rem;
-        padding-bottom: 3rem;
+        padding-top: 2.4rem;
+        padding-bottom: 2.8rem;
     }
 
     [data-testid="stSidebar"] {
         border-right: 1px solid var(--qp-border);
     }
+    [data-testid="stSidebar"] .block-container { padding-top: 1.35rem; }
 
-    [data-testid="stSidebar"] .block-container {
-        padding-top: 1.6rem;
-    }
-
-    .qp-brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 8px;
-    }
-
+    .qp-brand { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
     .qp-brand-icon {
-        width: 46px;
-        height: 46px;
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 24px;
-        background: linear-gradient(135deg, #4268E8 0%, #2747B8 100%);
-        box-shadow: 0 7px 18px rgba(49, 87, 213, 0.22);
+        width:44px; height:44px; flex-shrink:0; border-radius:13px;
+        display:flex; align-items:center; justify-content:center;
+        color:#fff; font-size:24px;
+        background:linear-gradient(135deg,#5278F4 0%,#3157D5 100%);
+        box-shadow:0 6px 16px rgba(49,87,213,.20);
     }
-
     .qp-brand-name {
-        color: var(--qp-ink);
-        font-size: 1.75rem;
-        font-weight: 750;
-        letter-spacing: -0.045em;
-        line-height: 1.1;
+        color:var(--qp-ink); font-size:1.55rem; font-weight:760;
+        letter-spacing:-.045em; line-height:1.1;
     }
-
-    .qp-brand-subtitle {
-        color: var(--qp-muted);
-        font-size: 0.92rem;
-        margin-top: 5px;
-    }
+    .qp-brand-subtitle { color:var(--qp-muted); opacity:.78; font-size:.84rem; margin-top:5px; }
 
     .qp-eyebrow {
-        color: var(--qp-blue);
-        font-size: 0.75rem;
-        font-weight: 750;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 0.4rem;
+        color:var(--qp-blue); font-size:.72rem; font-weight:750;
+        letter-spacing:.12em; text-transform:uppercase; margin-bottom:.45rem;
     }
-
     .qp-hero-title {
-        color: var(--qp-ink);
-        font-size: clamp(1.8rem, 3vw, 2.45rem);
-        font-weight: 760;
-        letter-spacing: -0.05em;
-        line-height: 1.13;
-        margin: 0 0 0.6rem 0;
+        color:var(--qp-ink); font-size:clamp(1.8rem,3vw,2.45rem);
+        font-weight:760; letter-spacing:-.05em; line-height:1.13; margin:0 0 .55rem 0;
     }
-
-    .qp-hero-copy {
-        color: var(--qp-muted);
-        font-size: 1.02rem;
-        line-height: 1.6;
-        margin-bottom: 1.4rem;
-    }
-
-    .qp-section-title {
-        color: var(--qp-ink);
-        font-size: 1.2rem;
-        font-weight: 700;
-        letter-spacing: -0.025em;
-        margin-bottom: 0.2rem;
-    }
-
-    .qp-section-copy {
-        color: var(--qp-muted);
-        font-size: 0.9rem;
-        margin-bottom: 0.9rem;
-    }
+    .qp-hero-copy { color:var(--qp-muted); opacity:.82; font-size:1rem; line-height:1.6; margin-bottom:1.25rem; }
+    .qp-section-title { color:var(--qp-ink); font-size:1.15rem; font-weight:720; letter-spacing:-.025em; margin-bottom:.2rem; }
+    .qp-section-copy { color:var(--qp-muted); opacity:.82; font-size:.9rem; margin-bottom:.85rem; line-height:1.55; }
 
     .qp-status {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        color: #166534;
-        background: #F0FDF4;
-        border: 1px solid #BBF7D0;
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 650;
-        white-space: nowrap;
+        display:inline-flex; align-items:center; gap:7px;
+        color:#22A06B; background:rgba(34,160,107,.10);
+        border:1px solid rgba(34,160,107,.28); padding:6px 10px;
+        border-radius:999px; font-size:.78rem; font-weight:650; white-space:nowrap;
     }
+    .qp-status-dot { width:7px; height:7px; border-radius:50%; background:#22C55E; }
+    .qp-status-wrap { text-align:right; padding-bottom:1.1rem; }
 
-    .qp-status-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #22C55E;
-    }
+    .qp-steps { color:var(--qp-muted); opacity:.9; font-size:.88rem; line-height:1.9; }
+    .qp-step-number { color:var(--qp-blue); font-weight:750; }
 
     div[data-testid="stForm"] {
-        border: 1px solid var(--qp-border);
-        border-radius: 18px;
-        padding: 1.2rem 1.25rem 1rem 1.25rem;
-        background: var(--qp-panel);
+        border:1px solid var(--qp-border); border-radius:16px;
+        padding:1.15rem 1.2rem 1rem 1.2rem;
+        background:var(--qp-panel);
     }
-
-    div[data-testid="stTextInput"] label,
-    div[data-testid="stRadio"] label {
-        font-weight: 650;
+    div[data-testid="stTextInput"] label, div[data-testid="stRadio"] label { font-weight:650; }
+    div[data-testid="stTextInput"] input { border-radius:10px; min-height:46px; }
+    div[data-testid="stFileUploader"] section { border-radius:12px; }
+    .stButton > button, div[data-testid="stFormSubmitButton"] > button {
+        border-radius:10px; min-height:42px; font-weight:650; transition:all .15s ease-in-out;
     }
-
-    div[data-testid="stTextInput"] input {
-        border-radius: 10px;
-        min-height: 46px;
-    }
-
-    .stButton > button,
-    div[data-testid="stFormSubmitButton"] > button {
-        border-radius: 10px;
-        min-height: 43px;
-        font-weight: 650;
-        transition: all 0.15s ease-in-out;
-    }
-
     div[data-testid="stFormSubmitButton"] > button[kind="primary"],
-    .stButton > button[kind="primary"] {
-        box-shadow: 0 5px 12px rgba(49, 87, 213, 0.16);
-    }
+    .stButton > button[kind="primary"] { box-shadow:0 4px 12px rgba(49,87,213,.16); }
+    .stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover { transform:translateY(-1px); }
+    div[data-testid="stVerticalBlockBorderWrapper"] { border-radius:14px; }
+    div[data-testid="stExpander"] { border-radius:11px; border-color:var(--qp-border); }
+    [data-testid="stDataFrame"] { border:1px solid var(--qp-border); border-radius:11px; overflow:hidden; }
+    hr { border-color:var(--qp-border); }
 
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 15px;
-    }
-
-    div[data-testid="stExpander"] {
-        border-radius: 11px;
-        border-color: var(--qp-border);
-    }
-
-    [data-testid="stDataFrame"] {
-        border: 1px solid var(--qp-border);
-        border-radius: 11px;
-        overflow: hidden;
-    }
-
-    hr {
-        border-color: var(--qp-border);
-    }
-
-    @media (max-width: 700px) {
-        .block-container {
-            padding-top: 1rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
-        }
-
-        .qp-brand-name {
-            font-size: 1.5rem;
-        }
-
-        div[data-testid="stForm"] {
-            padding: 0.9rem;
-        }
+    @media (max-width:700px) {
+        .block-container { padding-top:1rem; padding-left:1rem; padding-right:1rem; }
+        .qp-brand-name { font-size:1.4rem; }
+        div[data-testid="stForm"] { padding:.85rem; }
     }
     </style>
     """,
@@ -219,6 +120,9 @@ if "history" not in st.session_state:
 if "pending_clarification" not in st.session_state:
     st.session_state.pending_clarification = None
 
+if "active_dataset" not in st.session_state:
+    st.session_state.active_dataset = None
+
 
 # --------------------------------------------------
 # Query execution
@@ -229,8 +133,10 @@ def run_query(question, original_question=None):
 
     with st.spinner("Generating SQL and querying the database..."):
         try:
-            sql = generate_sql(question)
-            result = execute_readonly(sql)
+            active_dataset = st.session_state.active_dataset
+            selected_db_path = active_dataset["db_path"] if active_dataset else None
+            sql = generate_sql(question, db_path=selected_db_path)
+            result = execute_readonly(sql, db_path=selected_db_path)
 
             st.session_state.history.append({
                 "question": original_question or question,
@@ -265,9 +171,7 @@ def run_query(question, original_question=None):
             ):
                 friendly_message = (
                     "I can't answer this question using the current "
-                    "database. I can answer questions about customers, "
-                    "products, orders, and order items. Try asking "
-                    "about one of those."
+                    "database. Try asking about the columns available in your active dataset."
                 )
 
             elif isinstance(error, ValueError):
@@ -317,11 +221,11 @@ with st.sidebar:
     st.markdown("#### How it works")
     st.markdown(
         """
-        <div style="color:#64748B; font-size:0.9rem; line-height:1.75;">
-        <b style="color:#3157D5;">01</b> &nbsp; Ask in plain English<br>
-        <b style="color:#3157D5;">02</b> &nbsp; Clarify if needed<br>
-        <b style="color:#3157D5;">03</b> &nbsp; Generate and validate SQL<br>
-        <b style="color:#3157D5;">04</b> &nbsp; Explore results and charts
+        <div class="qp-steps">
+        <span class="qp-step-number">01</span> &nbsp; Ask in plain English<br>
+        <span class="qp-step-number">02</span> &nbsp; Clarify if needed<br>
+        <span class="qp-step-number">03</span> &nbsp; Generate and validate SQL<br>
+        <span class="qp-step-number">04</span> &nbsp; Explore results and charts
         </div>
         """,
         unsafe_allow_html=True,
@@ -334,6 +238,42 @@ with st.sidebar:
     st.caption("SQL validation · SQLGlot")
     st.caption("AI provider · Groq")
     st.caption("Clarification · Rules + AI")
+
+    st.divider()
+
+    st.markdown("#### Dataset")
+    st.caption("Use the sample database or upload a CSV / Excel file.")
+    uploaded_file = st.file_uploader(
+        "Upload dataset",
+        type=["csv", "xlsx"],
+        help="CSV and Excel (.xlsx) files are supported. Excel imports the first worksheet.",
+        key="dataset_uploader",
+    )
+    if st.button("Import dataset", use_container_width=True, disabled=uploaded_file is None):
+        try:
+            with st.spinner("Importing dataset..."):
+                dataset_info = import_dataset(uploaded_file)
+            st.session_state.active_dataset = dataset_info
+            st.session_state.pending_clarification = None
+            st.success(
+                f"Imported {dataset_info['source_name']} "
+                f"({dataset_info['row_count']:,} rows)."
+            )
+            st.rerun()
+        except Exception as error:
+            st.error(str(error))
+
+    if st.session_state.active_dataset:
+        dataset_info = st.session_state.active_dataset
+        st.caption(f"Active: {dataset_info['source_name']}")
+        st.caption(f"Table: {dataset_info['table_name']}")
+        st.caption(f"{dataset_info['row_count']:,} rows · {len(dataset_info['columns'])} columns")
+        if st.button("Switch to sample database", use_container_width=True):
+            st.session_state.active_dataset = None
+            st.session_state.pending_clarification = None
+            st.rerun()
+    else:
+        st.caption("Active: built-in sample database")
 
     st.divider()
 
@@ -384,11 +324,19 @@ with header_right:
 
 st.markdown('<div class="qp-section-title">Ask your database</div>',
             unsafe_allow_html=True)
-st.markdown(
-    '<div class="qp-section-copy">Enter a question about customers, products, '
-    'orders, or order items.</div>',
-    unsafe_allow_html=True,
-)
+if st.session_state.active_dataset:
+    active_name = st.session_state.active_dataset["source_name"]
+    st.markdown(
+        f'<div class="qp-section-copy">Ask questions using only the columns '
+        f'available in <b>{active_name}</b>. Unsupported questions should be rejected.</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        '<div class="qp-section-copy">Enter a question about customers, products, '
+        'orders, or order items.</div>',
+        unsafe_allow_html=True,
+    )
 
 with st.form("query_form"):
     question = st.text_input(
@@ -407,8 +355,15 @@ if submitted:
     if not question.strip():
         st.warning("Please enter a question.")
     else:
-        # Check existing rule-based patterns first, then AI-based ambiguity.
-        clarification = detect_ai_clarification(question)
+        # The built-in clarification engine was designed around the sample
+        # database (customers/products/orders). Do not let it reinterpret a
+        # question against those concepts when a user-uploaded dataset is active.
+        # For uploads, send the question directly to schema-aware text-to-SQL;
+        # unsupported requests are rejected by generate_sql using that dataset's schema.
+        if st.session_state.active_dataset is None:
+            clarification = detect_ai_clarification(question)
+        else:
+            clarification = None
 
         if clarification:
             st.session_state.pending_clarification = clarification
