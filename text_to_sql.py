@@ -2,6 +2,7 @@
 import os
 import re
 
+import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -9,7 +10,14 @@ from database import get_schema
 
 load_dotenv()
 
-API_KEY = os.getenv("GROQ_API_KEY")
+API_KEY = os.getenv("GROQ_API_KEY", "")
+
+if not API_KEY:
+    try:
+        API_KEY = st.secrets["GROQ_API_KEY"]
+    except Exception:
+        API_KEY = ""
+        
 MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
