@@ -9,7 +9,7 @@ from visualizations import detect_chart_type
 
 
 st.set_page_config(
-    page_title="QuerySense",
+    page_title="QueryPilot",
     page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded",
