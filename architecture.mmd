@@ -1,0 +1,15 @@
+flowchart TD
+    U[User] --> UI[Streamlit UI<br/>app.py]
+    UI --> CL{Clarification needed?}
+    CL -->|Yes| C[Rule-based + AI clarification<br/>clarification.py<br/>ai_clarification.py]
+    C -->|User selects interpretation| UI
+    CL -->|No| T[Text-to-SQL generator<br/>text_to_sql.py]
+    UI -->|Confirmed clarified question| T
+    T -->|SQL candidate| V[SQL validation + read-only execution<br/>database.py / SQLGlot]
+    V -->|Validated query| DB[(SQLite database<br/>customers, products,<br/>orders, order_items)]
+    DB --> V
+    V -->|Rows + columns| UI
+    UI --> R[Result table + supported charts<br/>visualizations.py]
+    UI --> H[In-session query history]
+    G[Groq API] <--> T
+    G <--> C
